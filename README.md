@@ -638,7 +638,8 @@ Once the VPN server stack is deployed and UserData scripts are complete, fetch t
 `aws cloudformation delete-stack --region us-east-2 --stack-name wireguard-vpn --profile vpn-controller`  
 `aws ssm delete-parameter --name "/wireguard/<your-ClientName>.conf" --region us-east-2 --profile vpn-controller`  
 
-## 8. Create Python scripts to quickly manage vpn connections
+## Create Python scripts to quickly manage vpn connections
+To further save time managing VPN connections, create python scripts to connect/disconnect from the dynamically managed VPN server. The connect script takes a parameter for the client device name, the pre baked AMI ID, and the AWS region you would like to mask internet traffic from. This script will first create the CloudFormation stack, then wait until the UserData script is complete by polling AWS SSM until the client config is found, and lastly will configure the Wireguard config on the client device. The disconnect script handles deleting the CloudFormation stack and removing all Wireguard config from the client device and AWS SSM. 
 
 - requirements.txt
 ```text
@@ -939,6 +940,6 @@ if __name__ == "__main__":
 ```
 
 - Connecting/disconnecting from the server is now as simple as running the commands:  
-`python connect.py`  
-`python disconnect.py`
+`python connect.py <client-name> <ami-id> <aws-region>`  
+`python disconnect.py <client-name>`
 

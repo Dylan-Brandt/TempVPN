@@ -1,2 +1,4 @@
 notes.txt
 vpn-template-no-ami.yaml
+*.conf
+/venv/*
