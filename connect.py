@@ -8,15 +8,13 @@ import os
 import sys
 from botocore.exceptions import ClientError
 
-AWS_REGION = "us-east-2"
 PROFILE = "vpn-controller"
 STACK_NAME = "wireguard-vpn"
-IMAGE_ID = "ami-0a2e16d72500b3a73"
 INSTANCE_TYPE = "t3.micro"
 
-session = boto3.Session(profile_name=PROFILE, region_name=AWS_REGION)
-cf = session.client("cloudformation")
-ssm = session.client("ssm")
+session = None
+cf = None
+ssm = None
 
 def get_public_ip():
     """
@@ -36,7 +34,7 @@ def get_public_ip():
 # --------------------------------------------------------------------
 # 1. CREATE VPN SERVER
 # --------------------------------------------------------------------
-def create_vpn_server(client_name: str, client_ip: str):
+def create_vpn_server(client_name: str, ami_id: str):
     print(f"[+] Creating VPN server for client: {client_name}")
 
     parameters = [
@@ -44,14 +42,14 @@ def create_vpn_server(client_name: str, client_ip: str):
         {"ParameterKey": "HomeCIDR", "ParameterValue": f"{get_public_ip()}/32"},
         {"ParameterKey": "ClientName", "ParameterValue": client_name},
         {"ParameterKey": "InstanceType", "ParameterValue": INSTANCE_TYPE},
-        {"ParameterKey": "ImageId", "ParameterValue": IMAGE_ID},
+        {"ParameterKey": "ImageId", "ParameterValue": ami_id},
     ]
 
     print("[+] Creating CloudFormation stack...")
     try:
         cf.create_stack(
             StackName=STACK_NAME,
-            TemplateBody=open("../vpn-template.yaml", "r").read(),
+            TemplateBody=open("./vpn-template.yaml", "r").read(),
             Parameters=parameters,
             Capabilities=["CAPABILITY_NAMED_IAM"]
         )
@@ -154,11 +152,17 @@ def activate_vpn_tunnel(client_name: str, config_content: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Provision WireGuard VPN Server")
     parser.add_argument("client_name", help="Name of WireGuard client")
+    parser.add_argument("ami_id", help="AMI ID of EC2 server")
+    parser.add_argument("aws_region", help="Region to provision EC2 server")
+
     client_ip = get_public_ip()
     args = parser.parse_args()
+    session = boto3.Session(profile_name=PROFILE, region_name=args.aws_region)
+    cf = session.client("cloudformation")
+    ssm = session.client("ssm")
 
     # Step 1: Create server
-    create_vpn_server(args.client_name, client_ip)
+    create_vpn_server(args.client_name, args.ami_id)
 
     # Step 2: Fetch config
     config = fetch_client_config(args.client_name)

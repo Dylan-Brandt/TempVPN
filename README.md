@@ -1,6 +1,6 @@
 # Personal VPN Setup Using AWS EC2 and Wireguard
 
-The goal of this project is to create a cheap, fast, and reliable personal VPN server hosted on AWS. To make it cheap, AWS CloudFormation stacks will be used to automatically create and decomission the VPN server and dedicated IP address for each new connection, thus avoiding the cost of keeping the server always on (t3.micro = \~$7.50/month), and the cost of an elastic ip not in use (\~$3.50/month). To make it fast, a separate CloudFormation stack will be used for static resources such as VPC, and an Amazon Machine Image (AMI) will be pre-baked to reduce server startup times by installing all required dependencies on the server. Another advantage of using CloudFormation stacks is that the resources can easily be created/destroyed in any region available on AWS. When all is done the vpn server will cost roughly $0.0104 per hour in use.
+The goal of this project is to create a cheap, fast, and reliable personal VPN server hosted on AWS. To make it cheap, AWS CloudFormation stacks will be used to automatically create and decomission the VPN server and dedicated IP address for each new connection, thus avoiding the cost of keeping the server always on (t3.micro = \~$7.50/month), and the cost of an elastic ip not in use (\~$3.50/month). To make it fast, a separate CloudFormation stack will be used for static resources such as VPC, and an Amazon Machine Image (AMI) will be pre-baked to reduce server startup times by installing all required dependencies on the server. Another advantage of using CloudFormation stacks is that the resources can easily be created/destroyed in any region available on AWS. When all is done the vpn server will cost roughly $0.0104 per hour in use, plus $~0.09/GB of data transfer over the internet.
 
 ## 1. Install Prerequisites
 - [AWS CLI](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-install.html)
@@ -638,7 +638,8 @@ Once the VPN server stack is deployed and UserData scripts are complete, fetch t
 `aws cloudformation delete-stack --region us-east-2 --stack-name wireguard-vpn --profile vpn-controller`  
 `aws ssm delete-parameter --name "/wireguard/<your-ClientName>.conf" --region us-east-2 --profile vpn-controller`  
 
-## 8. Create Python scripts to quickly manage vpn connections
+## Create Python scripts to quickly manage vpn connections
+To further save time managing VPN connections, create python scripts to connect/disconnect from the dynamically managed VPN server. The connect script takes a parameter for the client device name, the pre baked AMI ID, and the AWS region you would like to mask internet traffic from. This script will first create the CloudFormation stack, then wait until the UserData script is complete by polling AWS SSM until the client config is found, and lastly will configure the Wireguard config on the client device. The disconnect script handles deleting the CloudFormation stack and removing all Wireguard config from the client device and AWS SSM. 
 
 - requirements.txt
 ```text
@@ -939,6 +940,6 @@ if __name__ == "__main__":
 ```
 
 - Connecting/disconnecting from the server is now as simple as running the commands:  
-`python connect.py`  
-`python disconnect.py`
+`python connect.py <client-name> <ami-id> <aws-region>`  
+`python disconnect.py <client-name>`
 
