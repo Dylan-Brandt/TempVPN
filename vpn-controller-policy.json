@@ -1,0 +1,171 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CloudFormationWritePerms",
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:CreateStack",
+                "cloudformation:DeleteStack",
+                "cloudformation:UpdateStack",
+                "cloudformation:Describe*"
+            ],
+            "Resource": [
+                "arn:aws:cloudformation:*:189847685677:stack/wireguard-vpc/*",
+                "arn:aws:cloudformation:*:189847685677:stack/wireguard-vpn/*"
+            ],
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": [
+                        "<your-home-ip>/32"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "EC2WritePerms",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateVpc",
+                "ec2:CreateInternetGateway",
+                "ec2:CreateRoute",
+                "ec2:CreateRouteTable",
+                "ec2:CreateSubnet",
+                "ec2:CreateSecurityGroup",
+                "ec2:CreateTags",
+                "ec2:CreateKeyPair",
+                "ec2:ModifyVpcAttribute",
+                "ec2:ModifySubnetAttribute",
+                "ec2:AttachInternetGateway",
+                "ec2:AssociateRouteTable",
+                "ec2:AllocateAddress",
+                "ec2:AssociateAddress",
+                "ec2:RunInstances",
+                "ec2:StopInstances",
+                "ec2:TerminateInstances",
+                "ec2:ReleaseAddress",
+                "ec2:DisassociateAddress",
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:AuthorizeSecurityGroupEgress",
+                "ec2:RevokeSecurityGroupIngress",
+                "ec2:RevokeSecurityGroupEgress",
+                "ec2:DetachInternetGateway",
+                "ec2:DisassociateRouteTable",
+                "ec2:DeleteKeyPair",
+                "ec2:DeleteVpc",
+                "ec2:DeleteInternetGateway",
+                "ec2:DeleteRoute",
+                "ec2:DeleteRouteTable",
+                "ec2:DeleteSubnet",
+                "ec2:DeleteSecurityGroup",
+                "ec2:DeleteTags"
+            ],
+            "Resource": [
+                "arn:aws:ec2:*:189847685677:vpc/*",
+                "arn:aws:ec2:*:189847685677:subnet/*",
+                "arn:aws:ec2:*:189847685677:internet-gateway/*",
+                "arn:aws:ec2:*:189847685677:instance/*",
+                "arn:aws:ec2:*:189847685677:security-group/*",
+                "arn:aws:ec2:*:189847685677:route-table/*",
+                "arn:aws:ec2:*:189847685677:elastic-ip/*",
+                "arn:aws:ec2:*:189847685677:key-pair/*",
+                "arn:aws:ec2:*:189847685677:network-interface/*",
+                "arn:aws:ec2:*:189847685677:volume/*",
+                "arn:aws:ec2:*::image/*"
+            ],
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": [
+                        "<your-home-ip>/32"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "IAMWritePermissions",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateRole",
+                "iam:CreatePolicy",
+                "iam:CreateInstanceProfile",
+                "iam:TagRole",
+                "iam:PutRolePolicy",
+                "iam:AttachRolePolicy",
+                "iam:AddRoleToInstanceProfile",
+                "iam:PassRole",
+                "iam:DetachRolePolicy",
+                "iam:RemoveRoleFromInstanceProfile",
+                "iam:DeleteRole",
+                "iam:DeleteRolePolicy",
+                "iam:DeleteInstanceProfile"
+            ],
+            "Resource": [
+                "arn:aws:iam::189847685677:role/wireguard-vpc-InstanceRole*",
+                "arn:aws:iam::189847685677:instance-profile/*"
+            ],
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": [
+                        "<your-home-ip>/32"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "ManageVPN",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:StartInstances",
+                "ec2:StopInstances",
+                "ec2:Describe*"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": [
+                        "<your-home-ip>/32"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "SSMPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "ssm:PutParameter",
+                "ssm:DeleteParameter",
+                "ssm:GetParameter",
+                "ssm:GetParameters"
+            ],
+            "Resource": [
+                "arn:aws:ssm:*:189847685677:parameter/wireguard/*",
+                "arn:aws:ssm:*:189847685677:parameter/ec2/keypair/*"
+            ],
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": [
+                        "<your-home-ip>/32"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "AllowDecryptSSMKeys",
+            "Effect": "Allow",
+            "Action": [
+                "kms:Decrypt"
+            ],
+            "Resource": [
+                "arn:aws:kms:*:189847685677:key/*",
+                "arn:aws:kms:*:189847685677:alias/aws/ssm"
+            ],
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": [
+                        "<your-home-ip>/32"
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Wireguard VPN for home network
+
+Parameters:
+  AppName:
+    Type: String
+    Description: Application name
+  HomeCIDR:
+    Type: String
+    Description: Home network ip as /32 CIDR
+  ClientName:
+    Type: String
+    Description: Client name for the VPN tunnel
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: EC2 instance type
+  ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI for EC2 instance
+
+Resources:
+
+  # --- Security Group ---
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow VPN traffic and SSH from HomeCIDR
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: "${AppName}-vpc"
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: 51820 # Default WireGuard port
+          ToPort: 51820
+          CidrIp: !Ref HomeCIDR
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref HomeCIDR
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-sg"
+
+  # --- Elastic IP ---
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-eip"
+
+  # --- KeyPair --- (Optional SSH into server)
+  KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyFormat: pem
+      KeyName: !Sub "${AppName}-keypair"
+      KeyType: rsa
+
+  # --- EC2 Instance ---
+  VPNInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: KeyPair
+    Properties:
+      InstanceType: !Ref InstanceType
+      PublicIp: !Ref EIP
+      SubnetId:
+        Fn::ImportValue:
+          Fn::Sub: "${AppName}-subnet"
+      SecurityGroupIds: [!Ref SecurityGroup]
+      KeyName: !Sub "${AppName}-keypair"
+      IamInstanceProfile:
+        Fn::ImportValue:
+          Fn::Sub: "${AppName}-instance-profile"
+      ImageId: !Ref ImageId
+      Tags:
+        - Key: Name
+          Value: !Sub "${AppName}-instance"
+      UserData:
+        Fn::Base64: !Join
+          - ''
+          - - !Sub |
+              #!/bin/bash
+              set -eux
+
+              # Metadata from CloudFormation
+              APP_NAME=${AppName}
+              SSM_PATH_PREFIX=${AppName}
+              AWS_REGION=${AWS::Region}
+              CLIENT_NAME=${ClientName}
+              PUBLIC_IP=${EIP}
+            - |
+              echo "=== Setting up WireGuard directories ==="
+              WG_DIR=/etc/wireguard
+              WG_INTERFACE=wg0
+              mkdir -p $WG_DIR
+              chmod 700 $WG_DIR
+              cd $WG_DIR
+
+              echo "=== Generating keys ==="
+              # Generate server private key
+              SERVER_PRIVATE_KEY=$(wg genkey)
+              SERVER_PUBLIC_KEY=$(wg pubkey <<< "$SERVER_PRIVATE_KEY")
+              CLIENT_PRIVATE_KEY=$(wg genkey)
+              CLIENT_PUBLIC_KEY=$(wg pubkey <<< "$CLIENT_PRIVATE_KEY")
+
+              SERVER_IP="10.8.0.1"
+              CLIENT_IP="10.8.0.2"
+              SERVER_PORT=51820
+
+              echo "=== Detecting main network interface ==="
+              NIC=$(ip route get 8.8.8.8 | awk '{print $5; exit}')
+
+              echo "=== Creating WireGuard server config ==="
+              cat > $WG_DIR/$WG_INTERFACE.conf <<EOF
+              [Interface]
+              Address = $SERVER_IP/24
+              SaveConfig = true
+              ListenPort = $SERVER_PORT
+              PrivateKey = $SERVER_PRIVATE_KEY
+              PostUp = iptables -t nat -A POSTROUTING -o $NIC -j MASQUERADE
+              PostDown = iptables -t nat -D POSTROUTING -o $NIC -j MASQUERADE
+
+              [Peer]
+              PublicKey = $CLIENT_PUBLIC_KEY
+              AllowedIPs = $CLIENT_IP/32
+              EOF
+
+              echo "=== Enabling IP forwarding ==="
+              sysctl -w net.ipv4.ip_forward=1
+              echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-wireguard-forward.conf
+
+              echo "=== Enabling and starting WireGuard service ==="
+              systemctl enable wg-quick@$WG_INTERFACE
+              systemctl start wg-quick@$WG_INTERFACE
+
+              echo "=== Creating client configuration ==="
+              CLIENT_CONF="/root/$CLIENT_NAME.conf"
+              # PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+
+              cat > $CLIENT_CONF <<EOF
+              [Interface]
+              PrivateKey = $CLIENT_PRIVATE_KEY
+              Address = $CLIENT_IP/24
+              DNS = 1.1.1.1
+
+              [Peer]
+              PublicKey = $SERVER_PUBLIC_KEY
+              Endpoint = $PUBLIC_IP:$SERVER_PORT
+              AllowedIPs = 0.0.0.0/0, ::/0
+              PersistentKeepalive = 25
+              EOF
+
+              echo "=== Uploading client config to SSM Parameter Store ==="
+              PARAM_NAME="/$SSM_PATH_PREFIX/$CLIENT_NAME.conf"
+              aws ssm put-parameter \
+                --name "$PARAM_NAME" \
+                --value "$(cat $CLIENT_CONF)" \
+                --type SecureString \
+                --overwrite \
+                --region "$AWS_REGION"
+
+              echo "Client configuration stored in SSM as: $PARAM_NAME"
+
+              echo "=== WireGuard setup complete ==="
+
+
+  # --- Associate Elastic IP ---
+  EIPAssoc:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      InstanceId: !Ref VPNInstance
+
+Outputs:
+  InstanceId:
+    Description: EC2 Instance ID
+    Value: !Ref VPNInstance
+  ElasticIP:
+    Description: Public IP of the instance
+    Value: !Ref EIP
+  AppName:
+    Description: Application identifier for this stack
+    Value: !Ref AppName

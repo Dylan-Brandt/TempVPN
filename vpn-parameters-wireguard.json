@@ -1,0 +1,22 @@
+[
+    {
+        "ParameterKey": "AppName",
+        "ParameterValue": "wireguard"
+    },
+    {
+        "ParameterKey": "HomeCIDR",
+        "ParameterValue": "<your-home-ip>/32"
+    },
+    {
+        "ParameterKey": "ClientName",
+        "ParameterValue": "home-vpn"
+    },
+    {
+        "ParameterKey": "InstanceType",
+        "ParameterValue": "t3.micro"
+    },
+    {
+        "ParameterKey": "ImageId",
+        "ParameterValue": "ami-..."
+    }
+]
