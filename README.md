@@ -1,6 +1,6 @@
 # Personal VPN Setup Using AWS EC2 and Wireguard
 
-The goal of this project is to create a cheap, fast, and reliable personal VPN server hosted on AWS. To make it cheap, AWS CloudFormation stacks will be used to automatically create and decomission the VPN server and dedicated IP address for each new connection, thus avoiding the cost of keeping the server always on (t3.micro = ~$7.50/month), and the cost of an elastic ip not in use (~$3.50/month). To make it fast, a separate CloudFormation stack will be used for static resources such as VPC, and an Amazon Machine Image (AMI) will be pre-baked to reduce server startup times by installing all required dependencies on the server. Another advantage of using CloudFormation stacks is that the resources can easily be created/destroyed in any region available on AWS. When all is done the vpn server will cost roughly $0.0104 per hour in use.
+The goal of this project is to create a cheap, fast, and reliable personal VPN server hosted on AWS. To make it cheap, AWS CloudFormation stacks will be used to automatically create and decomission the VPN server and dedicated IP address for each new connection, thus avoiding the cost of keeping the server always on (t3.micro = \~$7.50/month), and the cost of an elastic ip not in use (\~$3.50/month). To make it fast, a separate CloudFormation stack will be used for static resources such as VPC, and an Amazon Machine Image (AMI) will be pre-baked to reduce server startup times by installing all required dependencies on the server. Another advantage of using CloudFormation stacks is that the resources can easily be created/destroyed in any region available on AWS. When all is done the vpn server will cost roughly $0.0104 per hour in use.
 
 ## 1. Install Prerequisites
 - [AWS CLI](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-install.html)
@@ -391,13 +391,15 @@ build {
 - To ensure the dependencies stay up to date, it is recommended to repeat this process every so often and bake a new AMI.
 
 ## 5. Create CloudFormation Stack for Dynamic VPN Server
-Whenever a VPN connection is needed the actual server, and elastic IP address can be dynamically created prior to obtaining a connection. While EC2 instances incur no cost while the instances are stopped, the elastic IP address has a cost when not in use by the server. By creating these resources dynamically this cost can be avoided.
+Whenever a VPN connection is needed the actual server, and elastic IP address can be dynamically created prior to obtaining a connection. While EC2 instances incur no cost while the instances are stopped, the elastic IP address has a cost when not in use by the server. By creating and destroying these resources dynamically this cost can be avoided.
 
 The static resources created in the previous stack such as VPC, Subnet, and Security Group can be imported to this template to speed up the deployment.
 
 With all the dependencies pre installed in the AMI, a UserData script is used to run the required commands to complete Wireguard setup and initialize the VPN server. Once the script completes the setup, the Wireguard client config is uploaded to AWS SSM where it can be fetched on the client machine and configured in the local Wireguard application.
 
-Optionally include a key pair to SSH into the server. This key pair can be fetched from AWS SSM from a local machine.
+The UserData script does a few things such as creating private/public keys to encrypt traffic between the server and client device, exposing the default Wireguard port [51820], and creating and exporting the Wireguard config file to be used on the client device.
+
+Optionally include a key pair to SSH into the server. This key pair can be fetched from AWS SSM from a local machine and used to ssh into the server.
 
 - CloudFormation template (vpn-template.yaml)
 ```yaml
@@ -636,7 +638,7 @@ Once the VPN server stack is deployed and UserData scripts are complete, fetch t
 `aws cloudformation delete-stack --region us-east-2 --stack-name wireguard-vpn --profile vpn-controller`  
 `aws ssm delete-parameter --name "/wireguard/<your-ClientName>.conf" --region us-east-2 --profile vpn-controller`  
 
-## Create Python scripts to quickly manage vpn connections
+## 8. Create Python scripts to quickly manage vpn connections
 
 - requirements.txt
 ```text
